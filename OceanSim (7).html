@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ocean Sim</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+body{background:#0d2b45;display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Helvetica Neue',sans-serif;user-select:none}
+#titlebar{height:38px;min-height:38px;background:rgba(20,22,30,0.98);border-bottom:.5px solid rgba(255,255,255,.07);
+  display:flex;align-items:center;padding:0 14px;gap:10px}
+.traffic{display:flex;gap:7px}
+.dot{width:12px;height:12px;border-radius:50%;cursor:pointer;transition:filter .15s}
+.dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
+.dot:hover{filter:brightness(1.3)}
+#app-title{flex:1;text-align:center;font-size:13px;font-weight:500;color:rgba(255,255,255,.55);pointer-events:none}
+#oc{position:relative;flex:1;overflow:hidden;cursor:crosshair}
+#wc{position:absolute;top:0;left:0;width:100%;height:100%}
+#ov{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#rc{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:0;transition:opacity .8s}
+#tabbar{display:flex;background:rgba(12,16,24,.98);border-top:.5px solid rgba(255,255,255,.06);min-height:36px}
+.tab{font-size:11px;color:rgba(150,200,255,.45);padding:0 14px;cursor:pointer;
+  border-bottom:2px solid transparent;transition:all .15s;display:flex;align-items:center;white-space:nowrap}
+.tab:hover{color:rgba(180,220,255,.75)}
+.tab.on{color:#cceeff;border-bottom-color:#5ba8d4;background:rgba(91,168,212,.06)}
+.panel{display:none;padding:8px 12px;background:rgba(10,14,22,.98);
+  border-top:.5px solid rgba(255,255,255,.04);flex-wrap:wrap;gap:7px;align-items:center;min-height:46px}
+.panel.on{display:flex}
+.cg{display:flex;align-items:center;gap:6px;flex:1;min-width:110px}
+.cg label{font-size:11px;color:rgba(150,205,255,.55);white-space:nowrap}
+.cg input[type=range]{flex:1;accent-color:#5ba8d4}
+.cg span{font-size:11px;color:rgba(200,230,255,.8);min-width:28px;text-align:right}
+.tbg{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.tb{background:rgba(255,255,255,.055);border:.5px solid rgba(255,255,255,.13);color:rgba(175,215,255,.7);
+  font-size:11px;padding:4px 9px;border-radius:6px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.tb:hover{background:rgba(91,168,212,.18)}
+.tb.on{background:rgba(91,168,212,.3);border-color:#5ba8d4;color:#d8f2ff}
+.div{width:.5px;height:24px;background:rgba(255,255,255,.08);margin:0 2px}
+.tg{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.tc{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px 6px;
+  border-radius:7px;border:1.5px solid transparent;transition:all .15s;min-width:50px}
+.tc:hover{background:rgba(255,255,255,.05)}
+.tc.on{border-color:#5ba8d4;background:rgba(91,168,212,.12)}
+.ti{width:28px;height:28px;border-radius:5px;border:.5px solid rgba(255,255,255,.12);
+  display:flex;align-items:center;justify-content:center;font-size:15px}
+.tl{font-size:9px;color:rgba(165,210,255,.6);white-space:nowrap;text-align:center}
+.sz{width:24px;height:24px;border-radius:50%;cursor:pointer;border:1.5px solid transparent;
+  display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.07)}
+.sz.on{border-color:#5ba8d4}
+.wr{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.wp{display:flex;align-items:center;gap:4px;padding:4px 9px;border-radius:16px;
+  border:.5px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  cursor:pointer;font-size:11px;color:rgba(175,215,255,.6);transition:all .15s}
+.wp:hover{background:rgba(255,255,255,.08)}
+.wp.on{border-color:var(--wc);background:var(--wb);color:#fff}
+.wd{width:7px;height:7px;border-radius:50%;background:var(--wc)}
+.hint{font-size:10px;color:rgba(120,180,225,.38)}
+</style>
+</head>
+<body>
+<div id="titlebar">
+  <div class="traffic">
+    <div class="dot dot-r"></div>
+    <div class="dot dot-y"></div>
+    <div class="dot dot-g" onclick="toggleFS()"></div>
+  </div>
+  <span id="app-title">Ocean Sim</span>
+  <div style="width:46px"></div>
+</div>
+
+<div id="oc">
+  <canvas id="wc"></canvas>
+  <canvas id="ov"></canvas>
+  <canvas id="rc"></canvas>
+</div>
+
+<div id="tabbar">
+  <div class="tab on" onclick="ST('waves',this)">Waves</div>
+  <div class="tab" onclick="ST('feat',this)">Features</div>
+  <div class="tab" onclick="ST('wfeat',this)">Water Features</div>
+  <div class="tab" onclick="ST('wx',this)">Weather</div>
+  <div class="tab" onclick="ST('grid',this)">Grid</div>
+</div>
+
+<div class="panel on" id="panel-waves">
+  <div class="cg"><label>Speed</label><input type="range" id="isp" min="0.1" max="2.5" step="0.1" value="0.9"><span id="osp">0.9</span></div>
+  <div class="cg"><label>Scale</label><input type="range" id="isc" min="0.4" max="2.5" step="0.1" value="1"><span id="osc">1.0</span></div>
+  <div class="cg"><label>Chop</label><input type="range" id="ich" min="0" max="1" step="0.05" value="0.35"><span id="och">0.35</span></div>
+  <div class="tbg">
+    <button class="tb on" onclick="SD(-Math.PI*.25,this)">↗ NE</button>
+    <button class="tb" onclick="SD(0,this)">→ E</button>
+    <button class="tb" onclick="SD(Math.PI*.5,this)">↓ S</button>
+    <button class="tb" onclick="SD(-Math.PI*.5,this)">↑ N</button>
+  </div>
+</div>
+
+<div class="panel" id="panel-feat">
+  <div class="tg" id="tg"></div>
+  <div class="div"></div>
+  <div class="tbg">
+    <span style="font-size:11px;color:rgba(150,205,255,.5)">Size</span>
+    <div class="sz on" onclick="SB(10,this)"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="rgba(180,220,255,.7)"/></svg></div>
+    <div class="sz" onclick="SB(22,this)"><svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="rgba(180,220,255,.7)"/></svg></div>
+    <div class="sz" onclick="SB(38,this)"><svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="rgba(180,220,255,.7)"/></svg></div>
+  </div>
+  <div class="div"></div>
+  <div class="tbg">
+    <button class="tb" id="ebtn" onclick="SM('erase',this)">✕ Erase</button>
+    <button class="tb" onclick="CA()">Clear all</button>
+  </div>
+</div>
+
+<div class="panel" id="panel-wfeat">
+  <div class="tg" id="wfg"></div>
+  <div class="div"></div>
+  <div class="tbg">
+    <span style="font-size:11px;color:rgba(150,205,255,.5)">Size</span>
+    <div class="sz on" id="wfs-s" onclick="SWS('s',this)"><svg width="10" height="10"><circle cx="5" cy="5" r="4" fill="rgba(180,220,255,.7)"/></svg></div>
+    <div class="sz" id="wfs-m" onclick="SWS('m',this)"><svg width="16" height="16"><circle cx="8" cy="8" r="7" fill="rgba(180,220,255,.7)"/></svg></div>
+    <div class="sz" id="wfs-l" onclick="SWS('l',this)"><svg width="22" height="22"><circle cx="11" cy="11" r="10" fill="rgba(180,220,255,.7)"/></svg></div>
+  </div>
+  <div class="div"></div>
+  <div class="tbg">
+    <button class="tb on" id="wfplace" onclick="SWM('place',this)">Place</button>
+    <button class="tb" id="wfrem" onclick="SWM('remove',this)">✕ Remove</button>
+    <button class="tb" onclick="CWF()">Clear all</button>
+  </div>
+  <span class="hint" id="wfhint">Click to place</span>
+</div>
+
+<div class="panel" id="panel-wx">
+  <div class="wr">
+    <div class="wp on" style="--wc:#f4c430;--wb:rgba(244,196,48,.18)" onclick="SW2('day',this)"><div class="wd"></div>☀️ Day</div>
+    <div class="wp" style="--wc:#4060a8;--wb:rgba(40,60,140,.28)" onclick="SW2('night',this)"><div class="wd"></div>🌙 Night</div>
+    <div class="wp" style="--wc:#607080;--wb:rgba(60,80,100,.32)" onclick="SW2('storm',this)"><div class="wd"></div>⛈ Storm</div>
+    <div class="wp" style="--wc:#9040c0;--wb:rgba(100,30,160,.32)" onclick="SW2('magic',this)"><div class="wd"></div>✨ Magic</div>
+  </div>
+  <div class="div"></div>
+  <div class="cg" style="min-width:150px"><label>Intensity</label><input type="range" id="isi" min="0" max="1" step="0.05" value="0.7"><span id="osi">0.7</span></div>
+</div>
+
+<div class="panel" id="panel-grid">
+  <div class="tbg">
+    <span style="font-size:11px;color:rgba(150,205,255,.5)">Mode</span>
+    <button class="tb on" id="gm-off" onclick="SGM('off',this)">Off</button>
+    <button class="tb" id="gm-lines" onclick="SGM('lines',this)">Lines</button>
+    <button class="tb" id="gm-dots" onclick="SGM('dots',this)">Dots</button>
+  </div>
+  <div class="div"></div>
+  <div class="cg" style="min-width:150px"><label>Cell size</label><input type="range" id="igs" min="20" max="200" step="10" value="60"><span id="ogs">60px</span></div>
+  <div class="cg" style="min-width:130px"><label>Opacity</label><input type="range" id="igo" min="0.05" max="0.6" step="0.05" value="0.2"><span id="ogo">0.20</span></div>
+  <div class="tbg">
+    <span style="font-size:11px;color:rgba(150,205,255,.5)">Color</span>
+    <button class="tb on" id="gc-w" onclick="SGC('255,255,255',this)">White</button>
+    <button class="tb" id="gc-b" onclick="SGC('0,0,0',this)">Black</button>
+    <button class="tb" id="gc-c" onclick="SGC('80,200,220',this)">Cyan</button>
+    <button class="tb" id="gc-g" onclick="SGC('220,180,60',this)">Gold</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// Canvases
+const wc=document.getElementById('wc'), wCtx=wc.getContext('2d');
+const ov=document.getElementById('ov'), ovCtx=ov.getContext('2d');
+const rc=document.getElementById('rc'), rcCtx=rc.getContext('2d');
+const wrap=document.getElementById('oc');
+
+const CELL=4; // sim cell size in pixels — fillRect(CELL,CELL) per sim pixel
+let W=0,H=0,COLS=0,ROWS=0;
+let islands,ttype,distF,gX,gY;
+let coral=[];
+let windDir=-Math.PI*.25, spd=0.9, scl=1.0, chp=0.35;
+let mode='draw', paint=false, dirty=false;
+let brush=10, aTerrain=0;
+let wfeats=[], aWF=0, wfMode='place', wfSz='s';
+const WFS={s:1,m:1.7,l:2.8};
+let weather='day', stmI=0.7, drops=[], ltTimer=0, ltFlash=0, bolt=null;
+let gridMode='off', gridSz=60, gridOp=0.2, gridRGB='255,255,255';
+
+const PAL={
+  day:  {d:[9,44,92], m:[16,82,142],  s:[25,118,178], c:[40,150,208],  f:[228,242,255],ar:0, ag:0, ab:0,  rain:false},
+  night:{d:[4,18,45], m:[8,36,80],    s:[12,58,110],  c:[18,88,148],   f:[180,200,230],ar:-10,ag:-5,ab:10, rain:false},
+  storm:{d:[12,28,50],m:[18,48,78],   s:[22,68,100],  c:[32,92,130],   f:[200,215,228],ar:5, ag:8, ab:15, rain:true},
+  magic:{d:[12,10,45],m:[18,14,80],   s:[28,18,110],  c:[45,25,148],   f:[215,200,240],ar:8, ag:0, ab:18, rain:true},
+};
+
+const TERRAINS=[
+  {l:'Sand',      b:[210,190,130],v1:[195,175,110],v2:[225,205,150],col:'#c8b870',coral:false},
+  {l:'Jungle',    b:[52,90,28],   v1:[38,75,18],  v2:[68,110,38],  col:'#4a7a22', coral:false},
+  {l:'Black rock',b:[48,48,52],   v1:[35,35,38],  v2:[62,62,68],   col:'#606068', coral:false},
+  {l:'Lava',      b:[120,30,10],  v1:[90,20,5],   v2:[180,60,15],  col:'#cc3300', coral:false},
+  {l:'Snow',      b:[230,238,245],v1:[218,228,238],v2:[245,250,255],col:'#aabfd0', coral:false},
+  {l:'Coral reef',b:[0,0,0],      v1:[0,0,0],      v2:[0,0,0],      col:'#e07830', coral:true},
+];
+const CC=[[220,80,60],[230,130,40],[210,60,120],[80,200,180],[240,200,50],[160,80,200],[255,120,80],[60,180,100],[200,50,80],[100,200,220]];
+
+const WF=[
+  {l:'Vortex',    e:'🌀',c:'#7060e0',r:55,
+    fn(fx,fy,px,py,t,R){const dx=px-fx,dy=py-fy,d=Math.sqrt(dx*dx+dy*dy);if(d>R||d<.1)return null;
+      const fo=Math.pow(1-d/R,2),a=Math.atan2(dy,dx)+t*2.5,sw=fo*1.2;
+      return{ox:-Math.sin(a)*sw*R*.18-dx/d*fo*R*.08,oy:Math.cos(a)*sw*R*.18-dy/d*fo*R*.08,hM:-fo*18,fM:fo*.4};}},
+  {l:'Undertow',  e:'↙',c:'#1860a0',r:70,
+    fn(fx,fy,px,py,t,R){const dx=px-fx,dy=py-fy,d=Math.sqrt(dx*dx+dy*dy);if(d>R)return null;
+      const pp=windDir+Math.PI*.5,pd=Math.abs(dx*Math.cos(pp)+dy*Math.sin(pp));if(pd>R*.18)return null;
+      const fo=Math.pow(1-pd/(R*.18),2)*(1-d/R)*1.1;
+      return{ox:Math.cos(windDir)*fo*R*.38,oy:Math.sin(windDir)*fo*R*.38,hM:Math.sin(d*.08+t*spd*2.5)*fo*20,fM:fo*.5,aM:1+fo*.5};}},
+  {l:'Riptide',   e:'⇒',c:'#40a0e0',r:70,
+    fn(fx,fy,px,py,t,R){const dx=px-fx,dy=py-fy,d=Math.sqrt(dx*dx+dy*dy);if(d>R)return null;
+      const pp=windDir+Math.PI*.5,pd=Math.abs(dx*Math.cos(pp)+dy*Math.sin(pp));if(pd>R*.18)return null;
+      const fo=Math.pow(1-pd/(R*.18),2)*(1-d/R)*1.1;
+      return{ox:-Math.cos(windDir)*fo*R*.38,oy:-Math.sin(windDir)*fo*R*.38,hM:-fo*12,fM:fo*.6};}},
+  {l:'Whirlpool', e:'🌊',c:'#9030a0',r:70,
+    fn(fx,fy,px,py,t,R){const dx=px-fx,dy=py-fy,d=Math.sqrt(dx*dx+dy*dy);if(d>R||d<.5)return null;
+      const ao=t*5+R*1.8*(1/d-1/R),a=Math.atan2(dy,dx),sp=Math.pow(1-d/R,1.2)*2.2;
+      const iS=Math.pow(1-d/R,1.6)*1.8;
+      return{ox:-Math.sin(a+ao)*sp*R*.22-dx/d*iS*R*.22,oy:Math.cos(a+ao)*sp*R*.22-dy/d*iS*R*.22,
+             hM:-Math.pow(1-d/R,2.5)*45,fM:Math.max(0,Math.sin((a-ao)*3)*.5+.5)*Math.pow(1-d/R,1.2)*.8};}},
+  {l:'Swell zone',e:'〜',c:'#1878d8',r:60,
+    fn(fx,fy,px,py,t,R){const dx=px-fx,dy=py-fy,d=Math.sqrt(dx*dx+dy*dy);if(d>R)return null;
+      const fo=Math.pow(1-d/R,1.4),al=dx*Math.cos(windDir)+dy*Math.sin(windDir);
+      const ridge=(Math.sin(al*.09-t*spd*2.2)*60+Math.sin(al*.05-t*spd*1.4+1.5)*30)*fo*(.75+.25*Math.sin(t*1.2));
+      return{ox:0,oy:0,hM:ridge,fM:fo*.7,aM:1+fo*1.4};}},
+  {l:'Dead calm', e:'○',c:'#305060',r:50,
+    fn(fx,fy,px,py,t,R){const dx=px-fx,dy=py-fy,d=Math.sqrt(dx*dx+dy*dy);if(d>R)return null;
+      const fo=Math.pow(1-d/R,1.5);return{ox:0,oy:0,aM:1-fo*.97,hM:0,fM:-fo};}},
+];
+
+// Build feature tiles
+(function(){
+  const tg=document.getElementById('tg');
+  TERRAINS.forEach((t,i)=>{
+    const el=document.createElement('div');el.className='tc'+(i===0?' on':'');
+    const sw=t.coral?'background:linear-gradient(135deg,#e05030,#e08020,#d04080,#40c8b0,#f0c030)':'background:'+t.col;
+    el.innerHTML=`<div style="width:26px;height:26px;border-radius:5px;border:.5px solid rgba(255,255,255,.12);${sw}"></div><div class="tl">${t.l}</div>`;
+    el.onclick=()=>{document.querySelectorAll('#tg .tc').forEach(e=>e.classList.remove('on'));el.classList.add('on');aTerrain=i;document.getElementById('ebtn').classList.remove('on');mode='draw';};
+    tg.appendChild(el);
+  });
+  const wfg=document.getElementById('wfg');
+  WF.forEach((f,i)=>{
+    const el=document.createElement('div');el.className='tc'+(i===0?' on':'');
+    el.innerHTML=`<div class="ti" style="background:${f.c}22;border-color:${f.c}44">${f.e}</div><div class="tl">${f.l}</div>`;
+    el.onclick=()=>{document.querySelectorAll('#wfg .tc').forEach(e=>e.classList.remove('on'));el.classList.add('on');aWF=i;document.getElementById('wfhint').textContent='Click to place '+f.l;document.getElementById('wfplace').classList.add('on');document.getElementById('wfrem').classList.remove('on');wfMode='place';};
+    wfg.appendChild(el);
+  });
+})();
+
+// Resize — all canvases at true display size
+function resize(){
+  const r=wrap.getBoundingClientRect();
+  W=Math.round(r.width)||800; H=Math.round(r.height)||500;
+  wc.width=W; wc.height=H;
+  ov.width=W; ov.height=H;
+  rc.width=W; rc.height=H;
+  COLS=Math.ceil(W/CELL); ROWS=Math.ceil(H/CELL);
+  islands=new Uint8Array(COLS*ROWS);
+  ttype=new Uint8Array(COLS*ROWS);
+  distF=new Float32Array(COLS*ROWS).fill(9999);
+  gX=new Float32Array(COLS*ROWS);
+  gY=new Float32Array(COLS*ROWS);
+  drops=[];for(let i=0;i<500;i++)drops.push({x:Math.random()*W,y:Math.random()*H,len:8+Math.random()*12,sp:9+Math.random()*10,a:.3+Math.random()*.45});
+}
+resize();
+window.addEventListener('resize',resize);
+
+// UI globals
+window.ST=function(n,b){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));b.classList.add('on');document.getElementById('panel-'+n).classList.add('on');};
+window.SD=function(a,b){windDir=a;document.querySelectorAll('#panel-waves .tb[onclick*="SD"]').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+window.SM=function(m,b){mode=m;document.getElementById('ebtn').classList.toggle('on',m==='erase');if(m==='erase')document.querySelectorAll('#tg .tc').forEach(e=>e.classList.remove('on'));};
+window.CA=function(){islands.fill(0);ttype.fill(0);coral=[];rebuildF();};
+window.SB=function(r,b){brush=r;document.querySelectorAll('#panel-feat .sz').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+window.SWM=function(m,b){wfMode=m;document.getElementById('wfplace').classList.toggle('on',m==='place');document.getElementById('wfrem').classList.toggle('on',m==='remove');};
+window.SWS=function(s,b){wfSz=s;document.querySelectorAll('.sz[id^=wfs-]').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+window.CWF=function(){wfeats=[];};
+window.SW2=function(w,b){weather=w;document.querySelectorAll('.wp').forEach(p=>p.classList.remove('on'));b.classList.add('on');};
+window.SGM=function(m,b){gridMode=m;document.querySelectorAll('.tb[id^=gm-]').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+window.SGC=function(c,b){gridRGB=c;document.querySelectorAll('.tb[id^=gc-]').forEach(x=>x.classList.remove('on'));b.classList.add('on');};
+window.toggleFS=function(){document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen?.();};
+
+function sl(id,oid,set,fmt){document.getElementById(id).addEventListener('input',function(){const v=parseFloat(this.value);set(v);document.getElementById(oid).textContent=fmt?fmt(v):v.toFixed(2).replace(/0+$/,'').replace(/\.$/,'');});}
+sl('isp','osp',v=>spd=v);sl('isc','osc',v=>scl=v);sl('ich','och',v=>chp=v);sl('isi','osi',v=>stmI=v);
+sl('igs','ogs',v=>gridSz=v,v=>Math.round(v)+'px');
+sl('igo','ogo',v=>gridOp=v);
+
+// Pointer
+function gPos(e){const r=wrap.getBoundingClientRect(),s=e.touches?e.touches[0]:e;return{x:s.clientX-r.left,y:s.clientY-r.top};}
+
+function rng(seed){let s=seed;return()=>{s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/0xffffffff;};}
+function stampCoral(cx,cy){
+  const rr=rng(cx*7+cy*13+coral.length*31+(Date.now()%1000));
+  for(let i=0;i<6+Math.floor(rr()*8);i++){
+    const a=rr()*Math.PI*2,d=rr()*brush*1.1;
+    const[r,g,b]=CC[Math.floor(rr()*CC.length)];
+    coral.push({x:cx+Math.cos(a)*d,y:cy+Math.sin(a)*d,r,g,b,sz:1+rr()*2.5,seed:rr()*1000});
+  }
+  if(coral.length>4000)coral=coral.slice(-4000);
+}
+
+let lastSX=-999,lastSY=-999;
+function onPaint(e,isMove){
+  const{x,y}=gPos(e);
+  const col=Math.floor(x/CELL),row=Math.floor(y/CELL);
+  const pid=document.querySelector('.panel.on')?.id;
+  if(!pid)return;
+
+  if(pid==='panel-wfeat'){
+    if(isMove)return;
+    if(wfMode==='remove'){
+      let bi=-1,bd=70*70;
+      wfeats.forEach((f,i)=>{const dx=f.x-x,dy=f.y-y,d2=dx*dx+dy*dy;if(d2<bd){bd=d2;bi=i;}});
+      if(bi>=0)wfeats.splice(bi,1);
+    } else {
+      wfeats.push({type:aWF,x,y,R:WF[aWF].r*WFS[wfSz]});
+    }
+    return;
+  }
+
+  if(pid==='panel-feat'){
+    if(mode==='erase'){
+      const rad=Math.max(1,Math.round(brush/CELL));let ch=false;
+      for(let dr=-rad;dr<=rad;dr++)for(let dc=-rad;dc<=rad;dc++){
+        if(dr*dr+dc*dc>rad*rad)continue;
+        const nr=row+dr,nc=col+dc;if(nr<0||nr>=ROWS||nc<0||nc>=COLS)continue;
+        const idx=nr*COLS+nc;if(islands[idx]){islands[idx]=0;ttype[idx]=0;ch=true;}
+      }
+      const er=(brush+8)*(brush+8);coral=coral.filter(p=>(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y)>er);
+      if(ch)dirty=true;return;
+    }
+    if(TERRAINS[aTerrain].coral){
+      const dx=x-lastSX,dy=y-lastSY;
+      if(!isMove||dx*dx+dy*dy>brush*brush*.8){stampCoral(x,y);lastSX=x;lastSY=y;}
+      return;
+    }
+    const rad=Math.max(1,Math.round(brush/CELL));let ch=false;
+    for(let dr=-rad;dr<=rad;dr++)for(let dc=-rad;dc<=rad;dc++){
+      if(dr*dr+dc*dc>rad*rad)continue;
+      const nr=row+dr,nc=col+dc;if(nr<0||nr>=ROWS||nc<0||nc>=COLS)continue;
+      const idx=nr*COLS+nc;
+      if(!islands[idx]||ttype[idx]!==aTerrain){islands[idx]=1;ttype[idx]=aTerrain;ch=true;}
+    }
+    if(ch)dirty=true;
+  }
+}
+
+wrap.addEventListener('mousedown',e=>{paint=true;lastSX=-999;lastSY=-999;onPaint(e,false);});
+wrap.addEventListener('mousemove',e=>{if(paint)onPaint(e,true);});
+wrap.addEventListener('mouseup',()=>paint=false);
+wrap.addEventListener('mouseleave',()=>paint=false);
+wrap.addEventListener('touchstart',e=>{e.preventDefault();paint=true;lastSX=-999;lastSY=-999;onPaint(e,false);},{passive:false});
+wrap.addEventListener('touchmove',e=>{e.preventDefault();if(paint)onPaint(e,true);},{passive:false});
+wrap.addEventListener('touchend',()=>paint=false);
+
+// BFS
+function rebuildF(){
+  distF.fill(9999);gX.fill(0);gY.fill(0);
+  const q=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(islands[r*COLS+c]===1){distF[r*COLS+c]=0;q.push(r*COLS+c);}
+  const nb=[[-1,0,1],[1,0,1],[0,-1,1],[0,1,1],[-1,-1,1.414],[1,-1,1.414],[-1,1,1.414],[1,1,1.414]];
+  for(let i=0;i<q.length;i++){
+    const idx=q[i],r=Math.floor(idx/COLS),c=idx%COLS,d=distF[idx];
+    for(const[dr,dc,co]of nb){const nr=r+dr,nc=c+dc;if(nr<0||nr>=ROWS||nc<0||nc>=COLS)continue;
+      const ni=nr*COLS+nc,nd=d+co;if(nd<distF[ni]){distF[ni]=nd;const ox=nc-c,oy=nr-r,ol=Math.sqrt(ox*ox+oy*oy)+.0001;gX[ni]=ox/ol;gY[ni]=oy/ol;q.push(ni);}}
+  }
+  const tx=new Float32Array(COLS*ROWS),ty=new Float32Array(COLS*ROWS);
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){if(islands[r*COLS+c]===1)continue;
+    let sx=0,sy=0,n=0;
+    for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++){const nr=r+dr,nc=c+dc;if(nr<0||nr>=ROWS||nc<0||nc>=COLS||islands[nr*COLS+nc]===1)continue;sx+=gX[nr*COLS+nc];sy+=gY[nr*COLS+nc];n++;}
+    if(n){tx[r*COLS+c]=sx/n;ty[r*COLS+c]=sy/n;}}
+  for(let i=0;i<COLS*ROWS;i++)if(islands[i]!==1){const l=Math.sqrt(tx[i]*tx[i]+ty[i]*ty[i])+.0001;gX[i]=tx[i]/l;gY[i]=ty[i]/l;}
+  dirty=false;
+}
+
+const L=(a,b,t)=>a+(b-a)*t;
+const SS=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
+const FO=(d,m)=>SS(m,0,d);
+
+const WV=[{a:1,l:1,p:0,da:0},{a:.5,l:.68,p:1.2,da:.18},{a:.3,l:.48,p:2.4,da:-.14},{a:.18,l:.35,p:.7,da:.3},{a:.1,l:.26,p:3.2,da:-.25}];
+// foam/block/slow/bend radii in sim-cell units
+const FR=8,BR=12,SR=14,BNR=10;
+
+function tCol(ti,col,row,t){
+  const tr=TERRAINS[ti];
+  const n=(Math.sin(col*.29)*.5+Math.sin(row*.31)*.5)*.5+.5,n2=Math.sin(col*.17+row*.19)*.5+.5;
+  let r=L(tr.v1[0],tr.v2[0],n)*.7+tr.b[0]*.3,g=L(tr.v1[1],tr.v2[1],n)*.7+tr.b[1]*.3,b=L(tr.v1[2],tr.v2[2],n)*.7+tr.b[2]*.3;
+  if(ti===3){const ck=Math.sin(col*.6+row*.4)*Math.sin(col*.3-row*.7);if(ck>.3){const gl=.5+.5*Math.sin(t*1.8);r=L(r,255,gl*.7);g=L(g,80+gl*60,gl*.5);b=L(b,10,.3);}}
+  if(ti===4){const sp=Math.sin(col*1.3+t*2)*Math.sin(row*1.1+t*1.7);if(sp>.7){r=Math.min(255,r+18);g=Math.min(255,g+18);b=Math.min(255,b+20);}}
+  if(ti===1)g=L(g,120,(Math.sin(col*.55+row*.44+t*.3)*.5+.5)*.18);
+  const dm=weather==='night'?.45:weather==='storm'?.72:weather==='magic'?.78:1;
+  const P=PAL[weather];
+  return[Math.max(0,Math.min(255,Math.round(r*dm+P.ar))),Math.max(0,Math.min(255,Math.round(g*dm+P.ag))),Math.max(0,Math.min(255,Math.round(b*dm+P.ab)))];
+}
+
+// Coral grid
+let cGrid=null,cgSz=8,cgC=0,cgR=0,lastCL=-1;
+function rebuildCG(){cgC=Math.ceil(W/cgSz);cgR=Math.ceil(H/cgSz);cGrid=Array.from({length:cgC*cgR},()=>[]);coral.forEach((p,i)=>{const gc=Math.floor(p.x/cgSz),gr=Math.floor(p.y/cgSz);if(gc>=0&&gc<cgC&&gr>=0&&gr<cgR)cGrid[gr*cgC+gc].push(i);});lastCL=coral.length;}
+
+// Bolt
+function mkBolt(x1,y1,x2,y2,rg,depth){if(!depth)return[[x1,y1],[x2,y2]];const mx=(x1+x2)/2+(Math.random()-.5)*rg,my=(y1+y2)/2+(Math.random()-.5)*rg*.5;return mkBolt(x1,y1,mx,my,rg*.55,depth-1).concat(mkBolt(mx,my,x2,y2,rg*.55,depth-1).slice(1));}
+
+function iHash(){let h=0;for(let i=0;i<islands.length;i+=11)h=(h*31+islands[i]+ttype[i]*7)&0xffffff;return h;}
+let lastH=-1, T=0, lastTs=null;
+
+function draw(ts){
+  if(!lastTs)lastTs=ts;
+  const dt=Math.min((ts-lastTs)/1000,.05);lastTs=ts;T+=dt;
+
+  const h=iHash();if(h!==lastH||dirty){lastH=h;rebuildF();}
+  if(coral.length!==lastCL)rebuildCG();
+
+  const P=PAL[weather];
+  const isMag=weather==='magic',isNt=weather==='night',isStm=weather==='storm'||isMag;
+  const sAmp=isStm?1+stmI*.6:1, sCh=isStm?chp+stmI*.3:chp;
+  const cGlit=isNt?1.35:isStm?1.65:1;
+  const wdx=Math.cos(windDir),wdy=Math.sin(windDir);
+
+  // ── Wave canvas (fillRect blocks) ────────────────────────────
+  for(let row=0;row<ROWS;row++){
+    for(let col=0;col<COLS;col++){
+      const idx=row*COLS+col;
+      // display pixel center
+      const px=col*CELL+CELL/2, py=row*CELL+CELL/2;
+
+      if(islands[idx]===1){
+        const ti=ttype[idx];
+        const onE=(col>0&&islands[idx-1]!==1)||(col<COLS-1&&islands[idx+1]!==1)||(row>0&&islands[idx-COLS]!==1)||(row<ROWS-1&&islands[idx+COLS]!==1);
+        let[r,g,b]=tCol(ti,col,row,T);
+        if(onE){r=Math.round(L(r,Math.min(255,r+35),.3));g=Math.round(L(g,Math.min(255,g+32),.3));b=Math.round(L(b,Math.min(255,b+25),.3));}
+        wCtx.fillStyle=`rgb(${r},${g},${b})`;
+        wCtx.fillRect(col*CELL,row*CELL,CELL,CELL);
+        continue;
+      }
+
+      const rd=distF[idx];
+      const ox=gX[idx],oy=gY[idx],ndw=ox*wdx+oy*wdy;
+      const wwd=Math.max(0,-ndw),led=Math.max(0,ndw);
+      const foFd=rd<FR?FO(rd,FR):0,blFd=rd<BR?FO(rd,BR):0,slFd=rd<SR?FO(rd,SR):0,bnFd=rd<BNR?FO(rd,BNR):0;
+      let asc=Math.max(0,1-led*blFd*1.2);
+      let edx=wdx,edy=wdy;
+      if(bnFd>.01&&wwd>.05){const dot=wdx*ox+wdy*oy,tx=wdx-dot*ox,ty=wdy-dot*oy,tl=Math.sqrt(tx*tx+ty*ty)+.0001;
+        const bl=wwd*bnFd*.4,rx=wdx*(1-bl)+(tx/tl)*bl,ry=wdy*(1-bl)+(ty/tl)*bl,rl=Math.sqrt(rx*rx+ry*ry)+.0001;edx=rx/rl;edy=ry/rl;}
+      const sm=1-slFd*.5;
+
+      let woX=0,woY=0,whM=0,wfM=0,waM=1;
+      for(let wi=0;wi<wfeats.length;wi++){const wf=wfeats[wi],res=WF[wf.type].fn(wf.x,wf.y,px,py,T,wf.R);
+        if(res){woX+=res.ox||0;woY+=res.oy||0;whM+=res.hM||0;wfM+=res.fM||0;waM*=res.aM??1;}}
+
+      const spx=px+woX,spy=py+woY;let hv=0,foam=0;
+      for(let i=0;i<WV.length;i++){const w=WV[i],ang=Math.atan2(edy,edx)+w.da,ddx=Math.cos(ang),ddy=Math.sin(ang);
+        const k=(Math.PI*2)/(w.l*scl*72),om=Math.sqrt(9.8*k)*sm,ph=k*(ddx*spx+ddy*spy)-om*T*spd+w.p;
+        const amp=w.a*scl*spd*16*asc*waM*sAmp;hv+=amp*Math.sin(ph);foam+=amp*sCh*Math.max(0,Math.cos(ph)-.58);}
+      hv+=whM;
+      const sf=wwd*foFd*foFd*.9*spd,tf=Math.min(foam/(scl*spd*6+.001)+sf+wfM,1);
+
+      const nm=Math.max(0,Math.min(1,(hv+52)/104));
+      let c3;
+      if(nm<.4)c3=[L(P.d[0],P.m[0],nm/.4),L(P.d[1],P.m[1],nm/.4),L(P.d[2],P.m[2],nm/.4)];
+      else if(nm<.7)c3=[L(P.m[0],P.s[0],(nm-.4)/.3),L(P.m[1],P.s[1],(nm-.4)/.3),L(P.m[2],P.s[2],(nm-.4)/.3)];
+      else c3=[L(P.s[0],P.c[0],(nm-.7)/.3),L(P.s[1],P.c[1],(nm-.7)/.3),L(P.s[2],P.c[2],(nm-.7)/.3)];
+      const f=Math.pow(Math.max(0,Math.min(1,tf)),1.5);
+      let r=Math.max(0,Math.min(255,Math.round(L(c3[0],P.f[0],f)+P.ar)));
+      let g=Math.max(0,Math.min(255,Math.round(L(c3[1],P.f[1],f)+P.ag)));
+      let b=Math.max(0,Math.min(255,Math.round(L(c3[2],P.f[2],f)+P.ab)));
+
+      // Coral
+      if(cGrid){
+        const gc=Math.floor(px/cgSz),gr=Math.floor(py/cgSz);
+        for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+          const ngc=gc+dc,ngr=gr+dr;if(ngc<0||ngc>=cgC||ngr<0||ngr>=cgR)continue;
+          const bk=cGrid[ngr*cgC+ngc];
+          for(let bi=0;bi<bk.length;bi++){const p=coral[bk[bi]];
+            const dx=px-p.x,dy=py-p.y,d2=dx*dx+dy*dy,ps=p.sz*p.sz;
+            if(d2<ps*2.5){const al=Math.max(0,1-d2/(ps*2.5))*.72;
+              const sr=isNt?2.5:isStm?3.5:1.2,sa=isNt?.26:isStm?.38:.12;
+              const sh=Math.max(.3,.85+sa*Math.sin(hv*.08+p.seed+T*sr));
+              let cr=p.r*sh,cg=p.g*sh,cb=p.b*sh;
+              if(isMag){cr=L(cr,180,.08);cb=Math.min(255,cb+18);}
+              if(isNt){cr*=.7;cg*=.7;cb=Math.min(255,cb*1.1);}
+              r=Math.round(L(r,cr,al*cGlit*.5));g=Math.round(L(g,cg,al*.5));b=Math.round(L(b,cb,al*(isMag?.55:.5)));
+              if(cGlit>1&&Math.sin(p.seed*7+T*sr*2)>.82){const sp=(Math.sin(p.seed*7+T*sr*2)-.82)*3;
+                r=Math.min(255,Math.round(r+sp*(isMag?55:90)));g=Math.min(255,Math.round(g+sp*(isMag?30:75)));b=Math.min(255,Math.round(b+sp*90));}
+              r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));}}}}
+
+      wCtx.fillStyle=`rgb(${r},${g},${b})`;
+      wCtx.fillRect(col*CELL,row*CELL,CELL,CELL);
+    }
+  }
+
+  // ── Overlay canvas ────────────────────────────────────────────
+  ovCtx.clearRect(0,0,W,H);
+
+  // Grid
+  if(gridMode!=='off'){
+    ovCtx.save();
+    if(gridMode==='lines'){
+      ovCtx.strokeStyle=`rgba(${gridRGB},${gridOp})`;ovCtx.lineWidth=.5;
+      for(let x=0;x<=W;x+=gridSz){ovCtx.beginPath();ovCtx.moveTo(x,0);ovCtx.lineTo(x,H);ovCtx.stroke();}
+      for(let y=0;y<=H;y+=gridSz){ovCtx.beginPath();ovCtx.moveTo(0,y);ovCtx.lineTo(W,y);ovCtx.stroke();}
+    } else {
+      ovCtx.fillStyle=`rgba(${gridRGB},${gridOp*1.5})`;
+      const dr=Math.max(1,gridSz*.04);
+      for(let x=0;x<=W;x+=gridSz)for(let y=0;y<=H;y+=gridSz){ovCtx.beginPath();ovCtx.arc(x,y,dr,0,Math.PI*2);ovCtx.fill();}
+    }
+    ovCtx.restore();
+  }
+
+  // ── Grid cell hazard highlighting ─────────────────────────────
+  // Mark every grid cell that overlaps any feature's radius (circle-rect intersection)
+  if(gridMode!=='off' && wfeats.length>0){
+    for(let gx=0;gx*gridSz<=W;gx++){
+      for(let gy=0;gy*gridSz<=H;gy++){
+        const cellX=gx*gridSz, cellY=gy*gridSz;
+        const cx=cellX+gridSz/2, cy=cellY+gridSz/2;
+        const affected=[];
+        for(let wi=0;wi<wfeats.length;wi++){
+          const wf=wfeats[wi];
+          // Circle-rect intersection: find closest point on rect to circle center
+          const nearX=Math.max(cellX,Math.min(wf.x,cellX+gridSz));
+          const nearY=Math.max(cellY,Math.min(wf.y,cellY+gridSz));
+          const dx=wf.x-nearX, dy=wf.y-nearY;
+          if(dx*dx+dy*dy<=wf.R*wf.R){
+            // distance of cell CENTER to feature center (for intensity gradient)
+            const dcx=cx-wf.x, dcy=cy-wf.y;
+            const frac=Math.min(1,Math.sqrt(dcx*dcx+dcy*dcy)/wf.R);
+            affected.push({wf,frac});
+          }
+        }
+        if(!affected.length) continue;
+        affected.sort((a,b)=>a.frac-b.frac);
+        const {wf:wfA,frac}=affected[0];
+        const fd=WF[wfA.type];
+        const hx=fd.c.replace('#','');
+        const fr=parseInt(hx.slice(0,2),16),fg=parseInt(hx.slice(2,4),16),fb=parseInt(hx.slice(4,6),16);
+        const pulse2=0.8+0.2*Math.sin(T*2+frac*3);
+        const intensity=(0.12+0.18*(1-frac))*pulse2;
+        ovCtx.save();
+        ovCtx.fillStyle=`rgba(${fr},${fg},${fb},${intensity})`;
+        ovCtx.fillRect(cellX,cellY,gridSz,gridSz);
+        ovCtx.strokeStyle=`rgba(${fr},${fg},${fb},${Math.min(0.9,intensity*3)})`;
+        ovCtx.lineWidth=1;ovCtx.setLineDash([3,3]);
+        ovCtx.strokeRect(cellX+.5,cellY+.5,gridSz-1,gridSz-1);
+        ovCtx.setLineDash([]);
+        if(gridSz>=28){
+          const symbols=['⚡','↙','↗','🌀','〰','○'];
+          ovCtx.font=`${Math.min(gridSz*.4,18)}px serif`;
+          ovCtx.textAlign='center';ovCtx.textBaseline='middle';
+          ovCtx.globalAlpha=Math.min(0.9,(0.5+0.5*(1-frac))*pulse2);
+          ovCtx.fillStyle='rgba(255,255,255,1)';
+          ovCtx.fillText(symbols[wfA.type]??'⚠',cx,cy);
+        }
+        ovCtx.restore();
+      }
+    }
+  }
+
+  // ── Water feature icons ───────────────────────────────────────
+  wfeats.forEach(wf=>{
+    const fd=WF[wf.type], pulse=.6+.4*Math.sin(T*1.8);
+    const hx=fd.c.replace('#','');
+    const fr=parseInt(hx.slice(0,2),16),fg=parseInt(hx.slice(2,4),16),fb=parseInt(hx.slice(4,6),16);
+    ovCtx.save();
+
+    if(wf.type===3){
+      // ── Whirlpool: no animated overlay — effect is purely in wave distortion ──
+      // Show only: dark funnel center + dashed radius boundary
+      ovCtx.shadowBlur=0;
+
+      // Dark funnel gradient at center
+      const grad=ovCtx.createRadialGradient(wf.x,wf.y,0,wf.x,wf.y,wf.R*.22);
+      grad.addColorStop(0,'rgba(0,0,0,0.9)');
+      grad.addColorStop(0.5,'rgba(0,0,0,0.4)');
+      grad.addColorStop(1,'rgba(0,0,0,0)');
+      ovCtx.globalAlpha=pulse;
+      ovCtx.fillStyle=grad;
+      ovCtx.beginPath();ovCtx.arc(wf.x,wf.y,wf.R*.22,0,Math.PI*2);ovCtx.fill();
+
+      // Dashed boundary ring at full radius
+      ovCtx.globalAlpha=.4*pulse;
+      ovCtx.strokeStyle=fd.c;ovCtx.lineWidth=1.5;ovCtx.setLineDash([5,4]);
+      ovCtx.beginPath();ovCtx.arc(wf.x,wf.y,wf.R,0,Math.PI*2);ovCtx.stroke();
+      ovCtx.setLineDash([]);
+    } else {
+      // Generic: two concentric pulsing rings
+      ovCtx.strokeStyle=fd.c;ovCtx.lineWidth=1;
+      ovCtx.globalAlpha=.2*pulse;
+      ovCtx.beginPath();ovCtx.arc(wf.x,wf.y,wf.R,0,Math.PI*2);ovCtx.stroke();
+      ovCtx.globalAlpha=.3*pulse;
+      ovCtx.beginPath();ovCtx.arc(wf.x,wf.y,wf.R*.45,0,Math.PI*2);ovCtx.stroke();
+      // Directional arrows for riptide/undertow
+      if(wf.type===1||wf.type===2){
+        const dir=wf.type===1?windDir:windDir+Math.PI;
+        ovCtx.globalAlpha=.55*pulse;
+        ovCtx.strokeStyle=fd.c;ovCtx.lineWidth=2;ovCtx.lineCap='round';
+        const aLen=wf.R*.45;
+        const ax=wf.x+Math.cos(dir)*aLen,ay=wf.y+Math.sin(dir)*aLen;
+        ovCtx.beginPath();ovCtx.moveTo(wf.x-Math.cos(dir)*aLen*.3,wf.y-Math.sin(dir)*aLen*.3);ovCtx.lineTo(ax,ay);ovCtx.stroke();
+        // Arrowhead
+        const hlen=12,perp=dir+Math.PI*.5;
+        ovCtx.beginPath();
+        ovCtx.moveTo(ax,ay);
+        ovCtx.lineTo(ax-Math.cos(dir)*hlen+Math.cos(perp)*hlen*.4,ay-Math.sin(dir)*hlen+Math.sin(perp)*hlen*.4);
+        ovCtx.moveTo(ax,ay);
+        ovCtx.lineTo(ax-Math.cos(dir)*hlen-Math.cos(perp)*hlen*.4,ay-Math.sin(dir)*hlen-Math.sin(perp)*hlen*.4);
+        ovCtx.stroke();
+      }
+    }
+
+    // Center dot
+    ovCtx.globalAlpha=.85;ovCtx.fillStyle=fd.c;ovCtx.shadowBlur=0;
+    ovCtx.beginPath();ovCtx.arc(wf.x,wf.y,3.5,0,Math.PI*2);ovCtx.fill();
+    // Label
+    ovCtx.globalAlpha=.72;ovCtx.fillStyle='#e8f4ff';ovCtx.shadowBlur=0;
+    ovCtx.font='10px -apple-system,sans-serif';ovCtx.textAlign='center';ovCtx.textBaseline='alphabetic';
+    ovCtx.fillText(fd.e+' '+fd.l,wf.x,wf.y-10);
+    ovCtx.restore();
+  });
+
+  // Lightning
+  if(weather==='storm'||weather==='magic'){
+    const isMag=weather==='magic';
+    ltTimer-=dt;
+    if(ltTimer<=0){ltTimer=3+Math.random()*5;ltFlash=1;bolt=mkBolt(W*.1+Math.random()*W*.8,0,(Math.random()-.5)*W*.3+W*.5,H*.3+Math.random()*H*.4,90,6);}
+    if(bolt&&ltFlash>.02){
+      ovCtx.save();
+      ovCtx.globalAlpha=ltFlash*stmI*.09;ovCtx.fillStyle=isMag?'rgba(180,120,255,1)':'rgba(210,225,255,1)';ovCtx.fillRect(0,0,W,H);
+      ovCtx.globalAlpha=ltFlash*stmI*.55;ovCtx.strokeStyle=isMag?'rgba(200,150,255,1)':'rgba(180,210,255,1)';
+      ovCtx.lineWidth=6;ovCtx.lineJoin='round';ovCtx.shadowColor=isMag?'#c080ff':'#aaddff';ovCtx.shadowBlur=18;
+      ovCtx.beginPath();bolt.forEach(([x,y],i)=>i===0?ovCtx.moveTo(x,y):ovCtx.lineTo(x,y));ovCtx.stroke();
+      ovCtx.globalAlpha=ltFlash*stmI*.9;ovCtx.strokeStyle=isMag?'rgba(230,200,255,1)':'rgba(240,248,255,1)';
+      ovCtx.lineWidth=1.5;ovCtx.shadowBlur=6;
+      ovCtx.beginPath();bolt.forEach(([x,y],i)=>i===0?ovCtx.moveTo(x,y):ovCtx.lineTo(x,y));ovCtx.stroke();
+      ovCtx.restore();ltFlash*=.78;
+    }
+  }
+
+  // Rain
+  const Pr=PAL[weather];
+  if(Pr.rain){
+    rc.style.opacity=String(Math.min(1,stmI));
+    rcCtx.clearRect(0,0,W,H);
+    const isMag=weather==='magic';
+    drops.forEach(d=>{
+      d.y+=d.sp*dt*60*stmI;d.x+=dt*28*stmI;
+      if(d.y>H){d.y=-d.len;d.x=Math.random()*W;}if(d.x>W)d.x-=W;
+      rcCtx.beginPath();rcCtx.strokeStyle=isMag?`rgba(160,100,240,${d.a*stmI})`:`rgba(80,110,150,${d.a*stmI})`;
+      rcCtx.lineWidth=1;rcCtx.moveTo(d.x,d.y);rcCtx.lineTo(d.x+4*stmI,d.y+d.len);rcCtx.stroke();
+    });
+  } else {
+    rc.style.opacity='0';
+  }
+
+  requestAnimationFrame(draw);
+}
+
+requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
